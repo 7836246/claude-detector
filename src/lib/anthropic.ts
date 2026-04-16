@@ -42,6 +42,7 @@ export async function call({
     'content-type': 'application/json',
     'x-api-key': apiKey,
     'anthropic-version': ANTHROPIC_VERSION,
+    'user-agent': 'claude-cli/2.1.109 (external, cli)',
   };
   if (stream) headers['accept'] = 'text/event-stream';
 
