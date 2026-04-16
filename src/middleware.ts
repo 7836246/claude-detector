@@ -25,6 +25,13 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+function isHttps(ctx: Parameters<Parameters<typeof defineMiddleware>[0]>[0]): boolean {
+  if (ctx.url.protocol === 'https:') return true;
+  const xfProto = ctx.request.headers.get('x-forwarded-proto');
+  if (xfProto && xfProto.split(',')[0].trim() === 'https') return true;
+  return false;
+}
+
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const response = await next();
 
@@ -32,7 +39,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     if (!response.headers.has(k)) response.headers.set(k, v);
   }
 
-  if (ctx.url.protocol === 'https:') {
+  if (isHttps(ctx)) {
     response.headers.set('Strict-Transport-Security', HSTS);
   }
 
