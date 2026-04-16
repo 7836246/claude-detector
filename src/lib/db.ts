@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const DATA_DIR = import.meta.env.DATA_DIR ?? './data';
+const DATA_DIR = process.env.DATA_DIR ?? import.meta.env.DATA_DIR ?? './data';
 
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });

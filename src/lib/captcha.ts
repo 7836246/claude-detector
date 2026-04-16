@@ -47,7 +47,7 @@ export function getCaptchaConfig(): CaptchaConfig {
     return {
       provider,
       siteKey: getConfig('captcha_site_key') ?? import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '',
-      secretKey: getConfig('captcha_secret_key') ?? import.meta.env.TURNSTILE_SECRET_KEY ?? '',
+      secretKey: getConfig('captcha_secret_key') ?? process.env.TURNSTILE_SECRET_KEY ?? import.meta.env.TURNSTILE_SECRET_KEY ?? '',
     };
   }
 

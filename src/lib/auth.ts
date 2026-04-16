@@ -6,8 +6,12 @@ function hashPassword(password: string): string {
   return createHash('sha256').update(password + SALT).digest('hex');
 }
 
+function getAdminPassword(): string {
+  return process.env.ADMIN_PASSWORD ?? import.meta.env.ADMIN_PASSWORD ?? '';
+}
+
 export function createAdminToken(): string {
-  const pw = import.meta.env.ADMIN_PASSWORD ?? '';
+  const pw = getAdminPassword();
   if (!pw) return '';
   return hashPassword(pw);
 }
@@ -21,7 +25,7 @@ export function verifyAdminToken(token: string | undefined): boolean {
 }
 
 export function isAdminConfigured(): boolean {
-  return !!(import.meta.env.ADMIN_PASSWORD);
+  return !!getAdminPassword();
 }
 
 export const COOKIE_NAME = 'admin_token';

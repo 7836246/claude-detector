@@ -23,7 +23,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return json({ error: 'Invalid request' }, 400);
   }
 
-  const expected = import.meta.env.ADMIN_PASSWORD ?? '';
+  const expected = process.env.ADMIN_PASSWORD ?? import.meta.env.ADMIN_PASSWORD ?? '';
   if (!password || password !== expected) {
     return json({ error: 'Wrong password' }, 401);
   }
