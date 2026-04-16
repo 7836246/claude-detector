@@ -1,0 +1,56 @@
+---
+export const prerender = true;
+import Layout from '../layouts/Layout.astro';
+import DetectForm from '../components/DetectForm.tsx';
+
+const features = [
+  { key: '1', title: '模型指纹识别', desc: '多维度探针检测模型是否被降级或替换。Opus 假装 Sonnet?一测便知。' },
+  { key: '2', title: 'Token 计费核验', desc: '对比真实 tokenizer 与上游返回的 usage 字段,识别虚报倍率和黑箱计费。' },
+  { key: '3', title: '延迟指纹分析', desc: 'TTFT 与吞吐分布比对官方基线,暴露隐藏的代理中间层。' },
+  { key: '4', title: '黑盒抗对抗', desc: '随机化 canary prompt,每次探针不同,防止代理针对性绕过检测。' },
+];
+---
+
+<Layout>
+  <!-- Hero -->
+  <section class="mx-auto max-w-5xl px-6 pt-24 pb-16">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="mb-4 text-[13px] font-medium text-terra" data-i18n="hero.badge">
+        a 社妈妈亲自把关 · anthropic.mom
+      </p>
+
+      <h1 class="text-4xl leading-[1.15] font-bold tracking-tight text-ink sm:text-5xl">
+        <span data-i18n="hero.title1">孩子,让妈妈看看</span><br />
+        <span data-i18n="hero.title2">你的 Key 是不是亲生的</span>
+      </h1>
+
+      <p class="mx-auto mt-5 max-w-lg text-base leading-relaxed text-ink-secondary">
+        <span data-i18n="hero.sub1">中转站掺假?模型被偷偷降级?Token 虚报倍率?</span><br />
+        <span data-i18n="hero.sub2">交给妈妈 — 19 轮黑盒探针,当场验明正身。</span>
+      </p>
+    </div>
+
+    <div class="mx-auto mt-10 max-w-lg">
+      <DetectForm client:load />
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="mx-auto max-w-5xl px-6 py-20">
+    <div class="mb-10 text-center">
+      <h2 class="text-2xl font-bold text-ink" data-i18n="features.title">如何工作</h2>
+      <p class="mt-2 text-sm text-ink-secondary" data-i18n="features.sub">四个维度交叉验证,让掺假无所遁形</p>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      {features.map((f, i) => (
+        <div class="rounded-xl border border-sand bg-white p-5 transition-colors hover:border-sand-dark">
+          <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-terra-light text-sm font-semibold text-terra">
+            {i + 1}
+          </div>
+          <h3 class="mb-1 text-[15px] font-semibold text-ink" data-i18n={`feat.${f.key}.title`}>{f.title}</h3>
+          <p class="text-sm leading-relaxed text-ink-secondary" data-i18n={`feat.${f.key}.desc`}>{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+</Layout>

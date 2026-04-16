@@ -1,0 +1,183 @@
+---
+export const prerender = false;
+import { verifyAdminToken, COOKIE_NAME } from '../../lib/auth';
+import { getConfig } from '../../lib/db';
+import { PROVIDER_LABELS, PROVIDER_DOCS, type CaptchaProvider } from '../../lib/captcha';
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+if (!verifyAdminToken(token)) {
+  return Astro.redirect('/admin/login');
+}
+
+const currentProvider = (getConfig('captcha_provider') ?? 'turnstile') as CaptchaProvider;
+const currentSiteKey = getConfig('captcha_site_key') ?? '';
+const currentSecretKey = getConfig('captcha_secret_key') ?? '';
+const currentTencentAppId = getConfig('captcha_tencent_appid') ?? '';
+const providers = Object.entries(PROVIDER_LABELS) as [CaptchaProvider, string][];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>验证码设置 — 妈妈后台</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{min-height:100vh;background:#1a1613;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#e8e2d9;padding:1.5rem}
+      @media(min-width:768px){body{padding:2rem}}
+      .wrap{max-width:600px;margin:0 auto}
+      .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+      .hdr h1{font-size:1.125rem;font-weight:600}
+      .hdr a{color:#9b9490;font-size:.75rem;text-decoration:none;padding:.25rem .5rem;border-radius:.375rem}.hdr a:hover{color:#e8e2d9;background:#262220}
+
+      .card{border:1px solid #3a3530;border-radius:.75rem;padding:1.5rem;background:#262220}
+      .section-title{font-size:.8125rem;color:#9b9490;margin-bottom:.75rem;font-weight:600}
+
+      .providers{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.5rem}
+      .prov{padding:.625rem .75rem;border:1px solid #3a3530;border-radius:.5rem;cursor:pointer;text-align:center;font-size:.8125rem;transition:all .15s;user-select:none}
+      .prov:hover{border-color:#6b6560}
+      .prov.on{border-color:#d97757;background:rgba(217,119,87,.08);color:#d97757}
+      .prov .pname{font-weight:600}
+
+      .fields{margin-top:1.25rem}
+      .field{margin-bottom:1rem}
+      .field label{display:block;font-size:.75rem;color:#9b9490;margin-bottom:.25rem}
+      .field input{width:100%;padding:.5rem .75rem;border:1px solid #3a3530;border-radius:.5rem;background:#1a1613;color:#e8e2d9;font-size:.875rem;outline:none;transition:border .15s}
+      .field input:focus{border-color:#d97757;box-shadow:0 0 0 2px rgba(217,119,87,.12)}
+      .field input:disabled{opacity:.4;cursor:not-allowed}
+      .doc{display:inline-block;margin-top:.25rem;font-size:.6875rem;color:#d97757;text-decoration:none}.doc:hover{text-decoration:underline}
+
+      .actions{margin-top:1.5rem;display:flex;gap:.75rem}
+      .btn{padding:.5rem 1.25rem;border:none;border-radius:.5rem;font-size:.875rem;cursor:pointer;font-weight:600;transition:opacity .15s}
+      .btn:disabled{opacity:.5;cursor:not-allowed}
+      .btn-p{background:#d97757;color:#fff}.btn-p:hover:not(:disabled){opacity:.9}
+      .btn-s{background:transparent;border:1px solid #3a3530;color:#9b9490}.btn-s:hover{border-color:#6b6560;color:#e8e2d9}
+      .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite;vertical-align:middle;margin-right:.375rem}
+      @keyframes spin{to{transform:rotate(360deg)}}
+
+      .toast{margin-top:1rem;padding:.5rem .75rem;border-radius:.375rem;font-size:.8125rem;opacity:0;transition:opacity .3s}
+      .toast.show{opacity:1}
+      .toast.ok{background:rgba(45,138,86,.12);color:#2d8a56}
+      .toast.err{background:rgba(217,64,64,.12);color:#d94040}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hdr">
+        <h1>⚙ 验证码设置</h1>
+        <a href="/admin">← 返回后台</a>
+      </header>
+
+      <div class="card">
+        <div class="section-title">验证码供应商</div>
+        <div class="providers" id="provs">
+          {providers.map(([key, label]) => (
+            <div class={`prov ${key === currentProvider ? 'on' : ''}`} data-p={key}>
+              <div class="pname">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div class="fields" id="fields" style={currentProvider === 'none' ? 'display:none' : ''}>
+          <div class="field">
+            <label>Site Key / App ID</label>
+            <input type="text" id="sk" value={currentSiteKey} placeholder="公钥" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>Secret Key</label>
+            <input type="password" id="sec" value={currentSecretKey} placeholder="私钥" autocomplete="off" />
+          </div>
+          <div class="field" id="tencent-field" style={currentProvider === 'tencent' ? '' : 'display:none'}>
+            <label>腾讯云 AppID</label>
+            <input type="text" id="appid" value={currentTencentAppId} placeholder="CaptchaAppId" autocomplete="off" />
+          </div>
+          <a class="doc" id="doclink" href={PROVIDER_DOCS[currentProvider] || '#'} target="_blank" rel="noopener"
+            style={currentProvider === 'none' ? 'display:none' : ''}>
+            → 前往供应商控制台获取密钥
+          </a>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-p" id="save">保存配置</button>
+          <a class="btn btn-s" href="/admin" style="text-decoration:none;text-align:center">取消</a>
+        </div>
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+
+    <script is:inline define:vars={{ PROVIDER_DOCS }}>
+      let provider = document.querySelector('.prov.on')?.dataset.p ?? 'turnstile';
+      const fields = document.getElementById('fields');
+      const tencent = document.getElementById('tencent-field');
+      const doclink = document.getElementById('doclink');
+      const toast = document.getElementById('toast');
+      const saveBtn = document.getElementById('save');
+      let saving = false;
+
+      // Provider selection
+      document.querySelectorAll('.prov').forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('.prov').forEach(e => e.classList.remove('on'));
+          el.classList.add('on');
+          provider = el.dataset.p;
+          const isNone = provider === 'none';
+          fields.style.display = isNone ? 'none' : '';
+          tencent.style.display = provider === 'tencent' ? '' : 'none';
+          doclink.style.display = isNone ? 'none' : '';
+          doclink.href = PROVIDER_DOCS[provider] || '#';
+        });
+      });
+
+      // Save
+      saveBtn.addEventListener('click', async () => {
+        if (saving) return;
+        saving = true;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner"></span>保存中...';
+        hideToast();
+
+        const body = { captcha_provider: provider };
+        if (provider !== 'none') {
+          body.captcha_site_key = document.getElementById('sk').value;
+          body.captcha_secret_key = document.getElementById('sec').value;
+          body.captcha_tencent_appid = document.getElementById('appid').value;
+        } else {
+          body.captcha_site_key = '';
+          body.captcha_secret_key = '';
+          body.captcha_tencent_appid = '';
+        }
+
+        try {
+          const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            showToast('ok', '配置已保存,前端验证码将在 60 秒内生效');
+          } else {
+            showToast('err', data.error || '保存失败');
+          }
+        } catch {
+          showToast('err', '网络错误');
+        }
+        saving = false;
+        saveBtn.disabled = false;
+        saveBtn.textContent = '保存配置';
+      });
+
+      function showToast(type, msg) {
+        toast.className = 'toast show ' + type;
+        toast.textContent = (type === 'ok' ? '✓ ' : '✗ ') + msg;
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(hideToast, 4000);
+      }
+      function hideToast() {
+        toast.classList.remove('show');
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+---
+export const prerender = true;
+import Layout from '../layouts/Layout.astro';
+
+const channels = [
+  { icon: '✉', title: 'Email', value: 'awz@anthropic.mom', href: 'mailto:awz@anthropic.mom' },
+  { icon: '◆', title: 'Telegram', value: '@anthropic_mom', href: 'https://t.me/anthropic_mom' },
+  { icon: '◉', title: 'GitHub', value: 'github.com/anthropic-mom', href: 'https://github.com/anthropic-mom' },
+  { icon: '✦', title: 'X / Twitter', value: '@anthropic_mom', href: 'https://x.com/anthropic_mom' },
+];
+---
+
+<Layout title="联系妈妈 — Anthropic 妈妈测试">
+  <section class="mx-auto max-w-2xl px-6 py-20">
+    <h1 class="text-3xl font-bold text-ink" data-i18n="contact.title">联系妈妈</h1>
+    <p class="mt-2 text-sm text-ink-secondary" data-i18n="contact.sub">有问题、反馈或合作意向?妈妈随时在</p>
+
+    <div class="mt-8 grid gap-3 sm:grid-cols-2">
+      {channels.map((c) => (
+        <a
+          href={c.href}
+          class="group rounded-xl border border-sand bg-white p-5 transition-colors hover:border-terra/30"
+        >
+          <div class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-terra-light text-sm text-terra">
+            {c.icon}
+          </div>
+          <div class="text-sm font-medium text-ink">{c.title}</div>
+          <div class="mt-0.5 text-xs text-ink-tertiary group-hover:text-terra">{c.value}</div>
+        </a>
+      ))}
+    </div>
+  </section>
+</Layout>

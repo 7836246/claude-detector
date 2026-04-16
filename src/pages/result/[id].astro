@@ -1,0 +1,53 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Report from '../../components/Report.tsx';
+import { load } from '../../lib/store';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+const raw = id ? load(id) : null;
+const data = raw as any;
+const found = !!data?.results;
+
+// Build ReportData shape for the Report component
+const reportData = found
+  ? {
+      score: data.score,
+      verdict: data.verdict,
+      verdictDetail: data.verdictDetail ?? null,
+      model: data.model ?? '',
+      categories: data.categories ?? [],
+      audit: data.audit ?? null,
+      probes: (data.results ?? []).map((r: any, i: number) => ({
+        index: i,
+        name: r.name,
+        label: r.label,
+        result: r,
+      })),
+      resultId: id,
+    }
+  : null;
+---
+
+<Layout title={found ? `检测结果 — Anthropic 妈妈测试` : '结果未找到'}>
+  <section class="mx-auto max-w-3xl px-6 py-12">
+    {found && reportData ? (
+      <Report client:load data={reportData} />
+    ) : (
+      <div class="rounded-xl border border-slate-200/70 bg-white/70 p-10 text-center backdrop-blur-sm">
+        <div class="text-4xl">😢</div>
+        <h1 class="mt-4 text-xl font-bold">结果未找到</h1>
+        <p class="mt-2 text-sm text-slate-600">
+          该检测结果不存在或已过期(结果保留 1 小时)。
+        </p>
+        <a
+          href="/"
+          class="mt-6 inline-block rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 hover:shadow-xl"
+        >
+          返回首页重新检测
+        </a>
+      </div>
+    )}
+  </section>
+</Layout>

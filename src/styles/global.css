@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Söhne", -apple-system, BlinkMacSystemFont, "SF Pro SC",
+    "Helvetica Neue", "PingFang SC", Arial, sans-serif;
+  --font-mono: "Söhne Mono", "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  /* Warm palette inspired by Anthropic */
+  --color-cream: #faf9f7;
+  --color-cream-dark: #f0ede8;
+  --color-sand: #e8e2d9;
+  --color-sand-dark: #d5cdc2;
+
+  --color-ink: #1a1613;
+  --color-ink-secondary: #6b6560;
+  --color-ink-tertiary: #9b9490;
+
+  --color-terra: #d97757;
+  --color-terra-dark: #c4643f;
+  --color-terra-light: #f5e0d6;
+
+  --color-ok: #2d8a56;
+  --color-ok-light: #dff3e6;
+  --color-warn: #d4860b;
+  --color-warn-light: #fef3e0;
+  --color-bad: #d94040;
+  --color-bad-light: #fde8e8;
+
+  --color-dark-bg: #1a1613;
+  --color-dark-surface: #262220;
+  --color-dark-border: #3a3530;
+  --color-dark-text: #e8e2d9;
+  --color-dark-muted: #9b9490;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--color-terra-light);
+  color: var(--color-ink);
+}

@@ -1,0 +1,16 @@
+services:
+  claude-detector:
+    build: .
+    ports:
+      - "4321:4321"
+    volumes:
+      - claude-detector-data:/data
+    environment:
+      - PUBLIC_TURNSTILE_SITE_KEY=${PUBLIC_TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - DATA_DIR=/data
+    restart: unless-stopped
+
+volumes:
+  claude-detector-data:

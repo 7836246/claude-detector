@@ -1,0 +1,228 @@
+---
+export const prerender = false;
+import { verifyAdminToken, COOKIE_NAME } from '../../lib/auth';
+import { getAdminStats, getRecentResults } from '../../lib/db';
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+if (!verifyAdminToken(token)) {
+  return Astro.redirect('/admin/login');
+}
+
+const stats = getAdminStats();
+const recent = getRecentResults(50);
+
+function maskEndpoint(url: string): string {
+  try { return new URL(url).hostname; } catch { return url.slice(0, 30); }
+}
+
+function timeAgo(ts: number): string {
+  const d = Date.now() - ts;
+  if (d < 60_000) return '刚刚';
+  if (d < 3600_000) return `${Math.floor(d / 60_000)} 分钟前`;
+  if (d < 86400_000) return `${Math.floor(d / 3600_000)} 小时前`;
+  return `${Math.floor(d / 86400_000)} 天前`;
+}
+
+const TIER_COLORS: Record<string, string> = {
+  authentic: '#2d8a56', authentic_degraded: '#6bbd7b',
+  third_party: '#3b82f6', suspicious: '#d4860b',
+  counterfeit: '#d94040', inconclusive: '#9b9490',
+  // Legacy DB values (backwards compat)
+  official_console: '#2d8a56', official_max: '#2d8a56',
+  proxy_clean: '#3b82f6', proxy_inflated: '#d4860b',
+  reverse: '#ea580c', non_claude: '#d94040', unknown: '#9b9490',
+};
+const TIER_LABELS: Record<string, string> = {
+  authentic: '正品', authentic_degraded: '正品 (瑕疵)',
+  third_party: '第三方', suspicious: '存疑',
+  counterfeit: '假冒', inconclusive: '未知',
+  // Legacy
+  official_console: '官方', official_max: '官方 Max',
+  proxy_clean: '合规中转', proxy_inflated: '虚报中转',
+  reverse: '逆向', non_claude: '非 Claude', unknown: '未知',
+};
+const maxDist = stats.verdictDistribution[0]?.count ?? 1;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>管理后台 — Anthropic 妈妈测试</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{min-height:100vh;background:#1a1613;font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC",sans-serif;color:#e8e2d9;line-height:1.5}
+
+      .wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
+      @media(min-width:768px){.wrap{padding:2rem}}
+
+      /* Header */
+      .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.75rem}
+      .hdr h1{font-size:1.25rem;display:flex;align-items:center;gap:.5rem}
+      .hdr-nav{display:flex;gap:.75rem;font-size:.75rem}
+      .hdr-nav a{color:#9b9490;text-decoration:none;padding:.25rem .5rem;border-radius:.375rem;transition:all .15s}
+      .hdr-nav a:hover{color:#e8e2d9;background:#262220}
+
+      /* Stats grid */
+      .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin-bottom:1.5rem}
+      @media(min-width:640px){.stats{grid-template-columns:repeat(4,1fr)}}
+      .stat{border:1px solid #3a3530;border-radius:.75rem;padding:1rem;background:#262220}
+      .stat-label{font-size:.625rem;text-transform:uppercase;letter-spacing:.08em;color:#9b9490}
+      .stat-val{font-size:1.5rem;font-weight:700;margin-top:.25rem;font-variant-numeric:tabular-nums}
+
+      /* Panels */
+      .panels{display:grid;gap:1rem;margin-bottom:1.5rem}
+      @media(min-width:768px){.panels{grid-template-columns:1fr 1fr}}
+      .panel{border:1px solid #3a3530;border-radius:.75rem;padding:1.25rem;background:#262220}
+      .panel h2{font-size:.8125rem;color:#9b9490;margin-bottom:.75rem;font-weight:600}
+      .empty{text-align:center;padding:1.5rem;color:#6b6560;font-size:.8125rem}
+
+      /* Distribution */
+      .dist-item{display:flex;align-items:center;gap:.625rem;margin-bottom:.5rem;font-size:.8125rem}
+      .dist-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+      .dist-label{min-width:80px}
+      .dist-bar-bg{flex:1;height:6px;background:#3a3530;border-radius:3px;overflow:hidden}
+      .dist-bar{height:100%;border-radius:3px;transition:width .3s}
+      .dist-count{font-weight:600;min-width:28px;text-align:right;font-variant-numeric:tabular-nums}
+
+      /* Endpoints */
+      .ep-row{display:flex;justify-content:space-between;padding:.375rem 0;border-bottom:1px solid #3a353033;font-size:.8125rem}
+      .ep-host{font-family:monospace;color:#9b9490}
+      .ep-count{font-weight:600;color:#d97757;font-variant-numeric:tabular-nums}
+
+      /* Table */
+      .tbl-wrap{border:1px solid #3a3530;border-radius:.75rem;background:#262220;overflow:hidden}
+      .tbl-hdr{padding:1rem 1.25rem;border-bottom:1px solid #3a353066;display:flex;justify-content:space-between;align-items:center}
+      .tbl-hdr h2{font-size:.8125rem;color:#9b9490;font-weight:600}
+      .tbl-scroll{overflow-x:auto}
+      table{width:100%;border-collapse:collapse;font-size:.8125rem}
+      th{text-align:left;padding:.5rem .75rem;font-size:.625rem;text-transform:uppercase;letter-spacing:.06em;color:#6b6560;border-bottom:1px solid #3a3530;white-space:nowrap;font-weight:600}
+      td{padding:.5rem .75rem;border-bottom:1px solid #3a353033;white-space:nowrap}
+      tr:hover td{background:#3a353022}
+      .mono{font-family:monospace}
+      .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.6875rem;font-weight:600}
+      .score{font-weight:700;font-variant-numeric:tabular-nums}
+      .link{color:#d97757;text-decoration:none;font-size:.75rem}.link:hover{text-decoration:underline}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hdr">
+        <h1>👩 妈妈后台</h1>
+        <nav class="hdr-nav">
+          <a href="/admin/settings">⚙ 验证码设置</a>
+          <a href="/">← 首页</a>
+          <a href="#" id="logout">退出</a>
+        </nav>
+      </header>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">总检测次数</div>
+          <div class="stat-val">{stats.totalDetections}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">今日检测</div>
+          <div class="stat-val">{stats.todayDetections}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">已测端点</div>
+          <div class="stat-val">{stats.distinctEndpoints}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">渠道类型</div>
+          <div class="stat-val">{stats.verdictDistribution.length} / 7</div>
+        </div>
+      </div>
+
+      <!-- Panels -->
+      <div class="panels">
+        <div class="panel">
+          <h2>渠道判定分布</h2>
+          {stats.verdictDistribution.length === 0 && <p class="empty">暂无数据</p>}
+          {stats.verdictDistribution.map((v) => {
+            const pct = Math.round((v.count / maxDist) * 100);
+            const color = TIER_COLORS[v.tier] ?? '#9b9490';
+            return (
+              <div class="dist-item">
+                <span class="dist-dot" style={`background:${color}`}></span>
+                <span class="dist-label">{TIER_LABELS[v.tier] ?? v.tier}</span>
+                <div class="dist-bar-bg">
+                  <div class="dist-bar" style={`width:${pct}%;background:${color}`}></div>
+                </div>
+                <span class="dist-count">{v.count}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div class="panel">
+          <h2>热门检测端点</h2>
+          {stats.topEndpoints.length === 0 && <p class="empty">暂无数据</p>}
+          {stats.topEndpoints.slice(0, 10).map((ep) => (
+            <div class="ep-row">
+              <span class="ep-host">{maskEndpoint(ep.endpoint)}</span>
+              <span class="ep-count">{ep.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- Results table -->
+      <div class="tbl-wrap">
+        <div class="tbl-hdr">
+          <h2>最近检测记录</h2>
+          <span style="font-size:.6875rem;color:#6b6560">{recent.length} 条</span>
+        </div>
+        {recent.length === 0 ? (
+          <p class="empty">暂无检测记录</p>
+        ) : (
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>端点</th>
+                  <th>模型</th>
+                  <th>分数</th>
+                  <th>渠道判定</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((r) => {
+                  const color = TIER_COLORS[r.tier] ?? '#9b9490';
+                  const sc = r.score >= 85 ? '#2d8a56' : r.score >= 50 ? '#d4860b' : '#d94040';
+                  return (
+                    <tr>
+                      <td class="mono" style="color:#9b9490">{timeAgo(r.createdAt)}</td>
+                      <td class="mono">{maskEndpoint(r.endpoint)}</td>
+                      <td style="color:#9b9490">{r.model.replace('claude-', '')}</td>
+                      <td class="score" style={`color:${sc}`}>{r.score}%</td>
+                      <td>
+                        <span class="badge" style={`background:${color}1a;color:${color}`}>
+                          {TIER_LABELS[r.tier] ?? r.tier}
+                        </span>
+                      </td>
+                      <td><a class="link" href={`/result/${r.id}`}>查看</a></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <script is:inline>
+      document.getElementById('logout')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.cookie = 'admin_token=; path=/; max-age=0';
+        window.location.href = '/admin/login';
+      });
+    </script>
+  </body>
+</html>

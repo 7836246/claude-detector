@@ -1,0 +1,82 @@
+---
+export const prerender = false;
+import { verifyAdminToken, COOKIE_NAME } from '../../lib/auth';
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+if (verifyAdminToken(token)) {
+  return Astro.redirect('/admin');
+}
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Login — Anthropic 妈妈测试</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a1613;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#e8e2d9}
+      .card{width:100%;max-width:360px;padding:2rem;border:1px solid #3a3530;border-radius:1rem;background:#262220}
+      .logo{text-align:center;font-size:2rem;margin-bottom:.5rem}
+      h1{text-align:center;font-size:1.125rem;margin-bottom:1.5rem;font-weight:600}
+      label{display:block;font-size:.8125rem;margin-bottom:.375rem;color:#9b9490}
+      input{width:100%;padding:.625rem .75rem;border:1px solid #3a3530;border-radius:.5rem;background:#1a1613;color:#e8e2d9;font-size:.875rem;outline:none;transition:border-color .15s}
+      input:focus{border-color:#d97757;box-shadow:0 0 0 2px rgba(217,119,87,.15)}
+      .btn{width:100%;margin-top:1.25rem;padding:.625rem;border:none;border-radius:.5rem;background:#d97757;color:#fff;font-weight:600;font-size:.875rem;cursor:pointer;transition:opacity .15s}
+      .btn:hover{opacity:.9}
+      .btn:disabled{opacity:.5;cursor:not-allowed}
+      .error{color:#d94040;font-size:.75rem;margin-top:.75rem;text-align:center;min-height:1rem}
+      .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite;vertical-align:middle;margin-right:.375rem}
+      @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="logo">👩</div>
+      <h1>管理后台</h1>
+      <form id="f">
+        <label for="pw">管理密码</label>
+        <input id="pw" type="password" name="password" placeholder="••••••••" required autofocus />
+        <button class="btn" type="submit" id="btn">登录</button>
+        <p class="error" id="err"></p>
+      </form>
+    </div>
+    <script is:inline>
+      const form = document.getElementById('f');
+      const btn = document.getElementById('btn');
+      const err = document.getElementById('err');
+      const pw = document.getElementById('pw');
+      let loading = false;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (loading) return;
+        loading = true;
+        err.textContent = '';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>验证中...';
+
+        try {
+          const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ password: pw.value }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            window.location.href = '/admin';
+            return;
+          }
+          err.textContent = data.error || '密码错误';
+        } catch {
+          err.textContent = '网络错误';
+        }
+        loading = false;
+        btn.disabled = false;
+        btn.textContent = '登录';
+      });
+    </script>
+  </body>
+</html>

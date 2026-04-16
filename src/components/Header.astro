@@ -1,0 +1,43 @@
+---
+import LocaleSwitch from './LocaleSwitch.tsx';
+
+const nav = [
+  { href: '/', key: 'nav.home', zh: '首页' },
+  { href: '/faq', key: 'nav.faq', zh: '常见问题' },
+  { href: '/contact', key: 'nav.contact', zh: '联系妈妈' },
+];
+const currentPath = Astro.url.pathname;
+---
+
+<header class="sticky top-0 z-50 border-b border-sand bg-cream/90 backdrop-blur-sm">
+  <div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+    <a href="/" class="flex items-center gap-2.5">
+      <div class="flex h-7 w-7 items-center justify-center rounded-full bg-terra text-sm text-white">A</div>
+      <div class="leading-tight">
+        <span class="text-sm font-semibold text-ink">Anthropic 妈妈测试</span>
+        <span class="ml-1.5 hidden text-[10px] text-ink-tertiary sm:inline">anthropic.mom</span>
+      </div>
+    </a>
+
+    <nav class="hidden items-center gap-6 md:flex">
+      {
+        nav.map((n) => (
+          <a
+            href={n.href}
+            data-i18n={n.key}
+            class:list={[
+              'text-[13px] transition-colors',
+              currentPath === n.href
+                ? 'font-medium text-ink'
+                : 'text-ink-secondary hover:text-ink',
+            ]}
+          >
+            {n.zh}
+          </a>
+        ))
+      }
+    </nav>
+
+    <LocaleSwitch client:load />
+  </div>
+</header>
