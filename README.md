@@ -235,6 +235,10 @@ SSE 事件: `start` → `probe_start` / `probe_result` (×19) → `done`
 - 输入校验:endpoint URL 格式、Key 长度、model 长度
 - 检测结果存储不包含原始 API Key
 
+## 社区
+
+本项目由 [LINUX DO](https://linux.do) 社区认可与支持。欢迎加入社区参与讨论、反馈和贡献。
+
 ## 许可
 
 [MIT](./LICENSE)
