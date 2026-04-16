@@ -161,6 +161,335 @@ const d: Dict = {
   'tier.market_price': { zh: '市场参考价', en: 'Market Ref. Price', ja: '市場参考価格', ko: '시장 참고가' },
   'tier.confidence': { zh: '置信度', en: 'Confidence', ja: '信頼度', ko: '신뢰도' },
   'tier.signals': { zh: '判定依据', en: 'Signals', ja: '判定根拠', ko: '판정 근거' },
+  'tier.unknown_source': { zh: '来源未知', en: 'Source unknown', ja: '出所不明', ko: '출처 미상' },
+
+  // Verdict descriptions
+  'verdict.desc.authentic': {
+    zh: '所有检测项通过,接口行为与官方 API 完全一致,可放心使用',
+    en: 'All probes passed; behavior matches the official API exactly.',
+    ja: 'すべての検証を通過し、挙動は公式APIと完全一致しています。',
+    ko: '모든 검증을 통과했으며 동작이 공식 API와 완전히 일치합니다.',
+  },
+  'verdict.desc.authentic_degraded': {
+    zh: '模型是真的,但检测到额外注入或轻微计费偏差,功能不受影响',
+    en: 'Genuine model, but mild injection or billing drift detected — functionality unaffected.',
+    ja: 'モデルは本物ですが、軽微なプロンプト注入または課金ズレを検出しました。',
+    ko: '모델은 진짜이나 가벼운 주입 또는 과금 편차가 감지되었습니다.',
+  },
+  'verdict.desc.third_party': {
+    zh: '真实 Claude 模型,通过非官方渠道转发,功能正常',
+    en: 'Real Claude model, forwarded through a third-party channel; functionality is normal.',
+    ja: '本物のClaudeモデルですが、非公式チャネル経由で転送されています。',
+    ko: '실제 Claude 모델이지만 비공식 채널을 통해 전달되고 있습니다.',
+  },
+  'verdict.desc.suspicious': {
+    zh: '多项指标异常,可能被篡改或降级,建议谨慎使用',
+    en: 'Multiple anomalies detected; the endpoint may be tampered or downgraded.',
+    ja: '複数の異常を検出しました。改ざんまたはダウングレードの可能性があります。',
+    ko: '여러 이상이 감지되었습니다. 변조 또는 다운그레이드 가능성이 있습니다.',
+  },
+  'verdict.desc.counterfeit': {
+    zh: '响应特征与 Claude 不符,疑似使用其他模型冒充',
+    en: 'Response characteristics do not match Claude; another model is likely impersonating it.',
+    ja: '応答特性がClaudeと一致しません。別のモデルによる偽装が疑われます。',
+    ko: '응답 특성이 Claude와 일치하지 않습니다. 다른 모델의 위장이 의심됩니다.',
+  },
+  'verdict.desc.inconclusive': {
+    zh: '连通性测试失败或数据不足,无法做出判定',
+    en: 'Connectivity failed or data is insufficient; verdict cannot be determined.',
+    ja: '接続失敗またはデータ不足のため、判定できません。',
+    ko: '연결 실패 또는 데이터 부족으로 판정할 수 없습니다.',
+  },
+
+  // Market prices (per channel)
+  'channel.market_price.anthropic': {
+    zh: '官方定价 (Opus: $15/$75 per 1M)',
+    en: 'Official pricing (Opus: $15/$75 per 1M)',
+    ja: '公式価格 (Opus: $15/$75 per 1M)',
+    ko: '공식 가격 (Opus: $15/$75 per 1M)',
+  },
+  'channel.market_price.subscription': {
+    zh: 'Claude Max ~$200/月 或 Pro $20/月',
+    en: 'Claude Max ~$200/mo or Pro $20/mo',
+    ja: 'Claude Max 約$200/月 または Pro $20/月',
+    ko: 'Claude Max 약 $200/월 또는 Pro $20/월',
+  },
+  'channel.market_price.cloud': {
+    zh: '云平台加价 ~1.2-1.5x 官方',
+    en: 'Cloud provider markup ~1.2-1.5x official',
+    ja: 'クラウド加算 ~1.2-1.5x 公式',
+    ko: '클라우드 가산 ~1.2-1.5x 공식',
+  },
+  'channel.market_price.proxy': {
+    zh: '中转约 2-3 元/刀',
+    en: 'Proxy relay ~2-3 CNY per USD',
+    ja: 'プロキシ中継 ~2-3 CNY/USD',
+    ko: '프록시 ~2-3 CNY/USD',
+  },
+  'channel.market_price.reverse-proxy': {
+    zh: '逆向约 0.5-1.5 元/刀',
+    en: 'Reverse-engineered ~0.5-1.5 CNY per USD',
+    ja: '逆向 ~0.5-1.5 CNY/USD',
+    ko: '리버스 엔지니어링 ~0.5-1.5 CNY/USD',
+  },
+  'channel.market_price.unknown': {
+    zh: '—', en: '—', ja: '—', ko: '—',
+  },
+
+  // Verdict signals
+  'signal.connectivity_failed': {
+    zh: '连通性测试失败,无法建立连接或鉴权失败',
+    en: 'Connectivity failed — cannot connect or auth rejected.',
+    ja: '接続テスト失敗 — 接続不可または認証拒否。',
+    ko: '연결 테스트 실패 — 접속 불가 또는 인증 거부.',
+  },
+  'signal.self_id_and_echo_mismatch': {
+    zh: '模型自报身份非 Claude 且 response.model 不匹配',
+    en: 'Self-identification is not Claude and response.model does not match.',
+    ja: '自己識別がClaudeではなく、response.modelも不一致。',
+    ko: '자기 식별이 Claude가 아니고 response.model도 불일치.',
+  },
+  'signal.self_id_not_claude': {
+    zh: '模型未自报为 Claude/Anthropic',
+    en: 'Model does not self-identify as Claude/Anthropic.',
+    ja: 'モデルがClaude/Anthropicと自己識別しません。',
+    ko: '모델이 Claude/Anthropic으로 자기 식별하지 않음.',
+  },
+  'signal.model_echo_mismatch': {
+    zh: 'response.model 与请求不匹配',
+    en: 'response.model does not match request.',
+    ja: 'response.modelが要求と不一致。',
+    ko: 'response.model이 요청과 일치하지 않음.',
+  },
+  'signal.system_prompt_injection': {
+    zh: '检测到隐藏 System Prompt 注入',
+    en: 'Hidden system prompt injection detected.',
+    ja: '隠されたシステムプロンプト注入を検出。',
+    ko: '숨겨진 시스템 프롬프트 주입 감지.',
+  },
+  'signal.inconsistent_request_id': {
+    zh: '请求 ID 重复或 input_tokens 不一致',
+    en: 'Duplicate request ID or inconsistent input_tokens.',
+    ja: 'リクエストIDの重複またはinput_tokensの不一致。',
+    ko: '요청 ID 중복 또는 input_tokens 불일치.',
+  },
+  'signal.missing_anthropic_headers': {
+    zh: '响应头缺少 Anthropic 特征',
+    en: 'Response headers lack Anthropic fingerprint.',
+    ja: '応答ヘッダーにAnthropicの特徴がありません。',
+    ko: '응답 헤더에 Anthropic 지문이 없음.',
+  },
+  'signal.schema_incomplete': {
+    zh: '响应 Schema 不完整',
+    en: 'Response schema incomplete.',
+    ja: '応答スキーマが不完全。',
+    ko: '응답 스키마 불완전.',
+  },
+  'signal.multimodal_anomaly': {
+    zh: '多模态输入异常',
+    en: 'Multimodal input behaves abnormally.',
+    ja: 'マルチモーダル入力が異常。',
+    ko: '멀티모달 입력 이상.',
+  },
+  'signal.reasoning_fingerprint_failed': {
+    zh: '推理指纹未通过',
+    en: 'Reasoning fingerprint did not match.',
+    ja: '推論指紋が一致しません。',
+    ko: '추론 지문이 일치하지 않음.',
+  },
+  'signal.tool_use_unsupported': {
+    zh: 'tool_use 不支持',
+    en: 'tool_use not supported.',
+    ja: 'tool_useがサポートされていません。',
+    ko: 'tool_use 미지원.',
+  },
+  'signal.streaming_abnormal': {
+    zh: 'SSE 流式异常',
+    en: 'SSE streaming abnormal.',
+    ja: 'SSEストリーミング異常。',
+    ko: 'SSE 스트리밍 이상.',
+  },
+  'signal.count_tokens_unavailable': {
+    zh: 'count_tokens 不可用',
+    en: 'count_tokens unavailable.',
+    ja: 'count_tokensが利用できません。',
+    ko: 'count_tokens 사용 불가.',
+  },
+  'signal.error_schema_nonstandard': {
+    zh: '错误格式非官方 Schema',
+    en: 'Error schema does not follow official format.',
+    ja: 'エラースキーマが公式形式と異なります。',
+    ko: '오류 스키마가 공식 형식과 다름.',
+  },
+  'signal.prompt_cache_unsupported': {
+    zh: 'Prompt Caching 不支持',
+    en: 'Prompt caching not supported.',
+    ja: 'プロンプトキャッシュ未対応。',
+    ko: '프롬프트 캐싱 미지원.',
+  },
+  'signal.document_unsupported': {
+    zh: 'PDF 文档输入不支持',
+    en: 'PDF document input not supported.',
+    ja: 'PDF文書入力未対応。',
+    ko: 'PDF 문서 입력 미지원.',
+  },
+  'signal.consistency_anomaly': {
+    zh: '请求一致性异常',
+    en: 'Request-consistency anomaly.',
+    ja: 'リクエスト一貫性の異常。',
+    ko: '요청 일관성 이상.',
+  },
+  'signal.all_core_passed_matched': {
+    zh: '所有核心检测通过',
+    en: 'All core checks passed.',
+    ja: 'コア検証をすべて通過。',
+    ko: '모든 핵심 검증 통과.',
+  },
+  'signal.token_usage_matches_baseline': {
+    zh: 'Token 用量与官方基线一致',
+    en: 'Token usage matches the official baseline.',
+    ja: 'トークン使用量が公式ベースラインと一致。',
+    ko: '토큰 사용량이 공식 기준과 일치.',
+  },
+  'signal.official_headers_present': {
+    zh: '官方响应头完整',
+    en: 'Official response headers complete.',
+    ja: '公式応答ヘッダーが完全。',
+    ko: '공식 응답 헤더 완비.',
+  },
+  'signal.token_drift_within_range': {
+    zh: 'Token 偏差在正常范围',
+    en: 'Token drift within normal range.',
+    ja: 'トークン偏差は正常範囲内。',
+    ko: '토큰 편차가 정상 범위 내.',
+  },
+  'signal.core_passed_no_audit': {
+    zh: '核心检测通过',
+    en: 'Core checks passed.',
+    ja: 'コア検証を通過。',
+    ko: '핵심 검증 통과.',
+  },
+  'signal.token_audit_disabled': {
+    zh: '未启用 Token 审计',
+    en: 'Token audit not enabled.',
+    ja: 'トークン監査は無効。',
+    ko: '토큰 감사 비활성화.',
+  },
+  'signal.token_ratio_high': {
+    zh: 'Token 倍率 {{ratio}}x 偏高',
+    en: 'Token multiplier {{ratio}}x is higher than normal.',
+    ja: 'トークン倍率 {{ratio}}x は高めです。',
+    ko: '토큰 배율 {{ratio}}x가 높음.',
+  },
+  'signal.token_ratio': {
+    zh: 'Token 倍率 {{ratio}}x',
+    en: 'Token multiplier {{ratio}}x.',
+    ja: 'トークン倍率 {{ratio}}x。',
+    ko: '토큰 배율 {{ratio}}x.',
+  },
+  'signal.injection_detected_but_functional': {
+    zh: '功能正常但检测到隐藏 Prompt 注入',
+    en: 'Functionality intact but hidden prompt injection detected.',
+    ja: '機能は正常だが、隠されたプロンプト注入を検出。',
+    ko: '기능은 정상이나 숨겨진 프롬프트 주입 감지.',
+  },
+  'signal.most_behavior_passed': {
+    zh: '大部分功能正常',
+    en: 'Most behavioral checks passed.',
+    ja: '大部分の機能が正常。',
+    ko: '대부분의 기능 검증 통과.',
+  },
+  'signal.most_behavior_passed_short': {
+    zh: '大部分功能检测通过',
+    en: 'Most behavior checks passed.',
+    ja: '大部分の機能検証を通過。',
+    ko: '대부분의 기능 검증 통과.',
+  },
+  'signal.behavior_score': {
+    zh: '行为检测通过 {{passed}}/{{total}}',
+    en: 'Behavior checks passed {{passed}}/{{total}}.',
+    ja: '動作検証 {{passed}}/{{total}}。',
+    ko: '동작 검증 {{passed}}/{{total}}.',
+  },
+
+  // Audit anomaly messages (per-round and summary)
+  'anomaly.input_inflated': {
+    zh: 'R{{round}} 输入 token 虚报 +{{pct}}% (报告 {{billed}}, 实际 {{honest}})',
+    en: 'R{{round}} input tokens inflated +{{pct}}% (billed {{billed}}, actual {{honest}})',
+    ja: 'R{{round}} 入力トークン水増し +{{pct}}% (報告 {{billed}}, 実際 {{honest}})',
+    ko: 'R{{round}} 입력 토큰 뻥튀기 +{{pct}}% (보고 {{billed}}, 실제 {{honest}})',
+  },
+  'anomaly.output_inflated': {
+    zh: 'R{{round}} 输出 token 虚报 +{{pct}}% (报告 {{billed}}, 实际 {{honest}})',
+    en: 'R{{round}} output tokens inflated +{{pct}}% (billed {{billed}}, actual {{honest}})',
+    ja: 'R{{round}} 出力トークン水増し +{{pct}}% (報告 {{billed}}, 実際 {{honest}})',
+    ko: 'R{{round}} 출력 토큰 뻥튀기 +{{pct}}% (보고 {{billed}}, 실제 {{honest}})',
+  },
+  'anomaly.input_deflated': {
+    zh: 'R{{round}} 输入 token 低于预期 (报告 {{billed}}, 预期 {{honest}})',
+    en: 'R{{round}} input tokens below expected (billed {{billed}}, expected {{honest}})',
+    ja: 'R{{round}} 入力トークンが予想より少ない (報告 {{billed}}, 予想 {{honest}})',
+    ko: 'R{{round}} 입력 토큰이 예상보다 적음 (보고 {{billed}}, 예상 {{honest}})',
+  },
+  'anomaly.cost_ratio_critical': {
+    zh: 'R{{round}} 成本倍率 {{ratio}}x 严重偏高',
+    en: 'R{{round}} cost ratio {{ratio}}x critically high',
+    ja: 'R{{round}} コスト倍率 {{ratio}}x は重大な偏差',
+    ko: 'R{{round}} 비용 배율 {{ratio}}x 심각하게 높음',
+  },
+  'anomaly.cost_ratio_high': {
+    zh: 'R{{round}} 成本倍率 {{ratio}}x 偏高',
+    en: 'R{{round}} cost ratio {{ratio}}x higher than normal',
+    ja: 'R{{round}} コスト倍率 {{ratio}}x が高め',
+    ko: 'R{{round}} 비용 배율 {{ratio}}x 높음',
+  },
+  'anomaly.missing_usage': {
+    zh: 'R{{round}} usage 字段全部为零',
+    en: 'R{{round}} usage fields are all zero',
+    ja: 'R{{round}} usageフィールドがすべてゼロ',
+    ko: 'R{{round}} usage 필드가 모두 0',
+  },
+  'anomaly.overall_ratio_critical': {
+    zh: '总体成本倍率 {{ratio}}x,严重超出正常范围',
+    en: 'Overall cost ratio {{ratio}}x — critically out of range',
+    ja: '総コスト倍率 {{ratio}}x — 重大に範囲外',
+    ko: '전체 비용 배율 {{ratio}}x — 범위를 심각하게 벗어남',
+  },
+  'anomaly.overall_ratio_high': {
+    zh: '总体成本倍率 {{ratio}}x,高于正常范围',
+    en: 'Overall cost ratio {{ratio}}x — above normal range',
+    ja: '総コスト倍率 {{ratio}}x — 正常範囲超過',
+    ko: '전체 비용 배율 {{ratio}}x — 정상 범위 초과',
+  },
+  'anomaly.cache_anomaly': {
+    zh: '存在缓存创建 ({{create}} tokens) 但无缓存读取,缓存可能未生效',
+    en: 'Cache writes occurred ({{create}} tokens) but no reads — caching may be broken.',
+    ja: 'キャッシュ作成 ({{create}} tokens) はあるが読取なし — キャッシュ未作動の可能性。',
+    ko: '캐시 생성 ({{create}} tokens)은 있으나 읽기가 없음 — 캐시가 작동하지 않을 수 있음.',
+  },
+
+  // Runner
+  'runner.probe_exception': {
+    zh: '异常: {{msg}}',
+    en: 'exception: {{msg}}',
+    ja: '例外: {{msg}}',
+    ko: '예외: {{msg}}',
+  },
+
+  // Result page (shared result view)
+  'result.title': { zh: '检测结果', en: 'Detection Result', ja: '検出結果', ko: '검출 결과' },
+  'result.not_found': { zh: '结果未找到', en: 'Result not found', ja: '結果が見つかりません', ko: '결과를 찾을 수 없음' },
+  'result.expired': {
+    zh: '该检测结果不存在或已过期(结果保留 1 小时)。',
+    en: 'This result does not exist or has expired (results kept for 1 hour).',
+    ja: '結果が存在しないか期限切れです (保存期間1時間)。',
+    ko: '결과가 존재하지 않거나 만료되었습니다 (1시간 보관).',
+  },
+  'result.back_home': { zh: '返回首页重新检测', en: 'Back to home — run again', ja: 'ホームに戻って再検証', ko: '홈으로 돌아가 다시 검증' },
+
+  // Captcha widget
+  'captcha.tencent_click': { zh: '点击进行人机验证', en: 'Click to verify', ja: 'クリックして認証', ko: '클릭하여 인증' },
+  'captcha.loading': { zh: '加载验证码中...', en: 'Loading captcha...', ja: 'キャプチャ読込中...', ko: '캡차 로딩 중...' },
 
   // API validation errors (server-side, via Accept-Language)
   'error.rate_limit': {
@@ -198,6 +527,30 @@ const d: Dict = {
     en: 'endpoint is too long',
     ja: 'endpointが長すぎます',
     ko: 'endpoint가 너무 깁니다',
+  },
+  'error.endpoint_private': {
+    zh: 'endpoint 指向内网或保留地址,已被拒绝',
+    en: 'endpoint points to a private or reserved address',
+    ja: 'endpointが内部ネットワークまたは予約アドレスを指しています',
+    ko: 'endpoint가 내부 네트워크 또는 예약 주소를 가리킵니다',
+  },
+  'error.endpoint_dns': {
+    zh: '无法解析 endpoint 主机名',
+    en: 'endpoint hostname cannot be resolved',
+    ja: 'endpointホスト名を解決できません',
+    ko: 'endpoint 호스트 이름을 확인할 수 없습니다',
+  },
+  'error.endpoint_userinfo': {
+    zh: 'endpoint 不得包含用户名或密码',
+    en: 'endpoint must not contain userinfo',
+    ja: 'endpointにユーザー情報を含めないでください',
+    ko: 'endpoint에 사용자 정보를 포함할 수 없습니다',
+  },
+  'error.probe_failed': {
+    zh: '探测失败,请检查 endpoint 与 API Key 后重试',
+    en: 'Probe failed, please verify endpoint and API key',
+    ja: 'プローブ失敗、endpointとAPIキーをご確認ください',
+    ko: '프로브 실패, endpoint와 API 키를 확인하세요',
   },
   'error.apikey_required': {
     zh: 'apiKey 必填',
@@ -263,8 +616,16 @@ const d: Dict = {
   },
 };
 
-export function t(key: string, locale: Locale = 'zh'): string {
-  return d[key]?.[locale] ?? d[key]?.zh ?? key;
+export function t(
+  key: string,
+  locale: Locale = 'zh',
+  params?: Record<string, string | number>,
+): string {
+  const raw = d[key]?.[locale] ?? d[key]?.zh ?? key;
+  if (!params) return raw;
+  return raw.replace(/\{\{(\w+)\}\}/g, (_, name: string) =>
+    params[name] !== undefined ? String(params[name]) : `{{${name}}}`,
+  );
 }
 
 // Detect locale from Accept-Language header (server-side).

@@ -17,7 +17,8 @@ export type AnomalySeverity = 'info' | 'warning' | 'critical';
 export interface Anomaly {
   type: AnomalyType;
   severity: AnomalySeverity;
-  message: string;
+  messageKey: string;
+  messageParams?: Record<string, string | number>;
   round: number | null; // null = overall anomaly
 }
 
@@ -77,13 +78,13 @@ export function isAnomalous(ratio: number): boolean {
 function detectEntryAnomalies(e: AuditEntry): Anomaly[] {
   const out: Anomaly[] = [];
 
-  // Token inflation
   if (e.honestInput !== null && e.billedInput > e.honestInput * 1.15) {
     const pct = Math.round(((e.billedInput - e.honestInput) / e.honestInput) * 100);
     out.push({
       type: 'token_inflation',
       severity: pct > 50 ? 'critical' : 'warning',
-      message: `R${e.round} 输入 token 虚报 +${pct}% (报告 ${e.billedInput}, 实际 ${e.honestInput})`,
+      messageKey: 'anomaly.input_inflated',
+      messageParams: { round: e.round, pct, billed: e.billedInput, honest: e.honestInput },
       round: e.round,
     });
   }
@@ -93,44 +94,46 @@ function detectEntryAnomalies(e: AuditEntry): Anomaly[] {
     out.push({
       type: 'token_inflation',
       severity: pct > 50 ? 'critical' : 'warning',
-      message: `R${e.round} 输出 token 虚报 +${pct}% (报告 ${e.billedOutput}, 实际 ${e.honestOutput})`,
+      messageKey: 'anomaly.output_inflated',
+      messageParams: { round: e.round, pct, billed: e.billedOutput, honest: e.honestOutput },
       round: e.round,
     });
   }
 
-  // Token deflation (underreporting — unusual, may indicate broken tokenizer)
   if (e.honestInput !== null && e.billedInput < e.honestInput * TOLERANCE_LOW && e.honestInput > 10) {
     out.push({
       type: 'token_deflation',
       severity: 'info',
-      message: `R${e.round} 输入 token 低于预期 (报告 ${e.billedInput}, 预期 ${e.honestInput})`,
+      messageKey: 'anomaly.input_deflated',
+      messageParams: { round: e.round, billed: e.billedInput, honest: e.honestInput },
       round: e.round,
     });
   }
 
-  // Cost ratio anomaly
   if (e.ratio > CRITICAL_HIGH) {
     out.push({
       type: 'cost_mismatch',
       severity: 'critical',
-      message: `R${e.round} 成本倍率 ${e.ratio.toFixed(2)}x 严重偏高`,
+      messageKey: 'anomaly.cost_ratio_critical',
+      messageParams: { round: e.round, ratio: e.ratio.toFixed(2) },
       round: e.round,
     });
   } else if (e.ratio > TOLERANCE_HIGH) {
     out.push({
       type: 'cost_mismatch',
       severity: 'warning',
-      message: `R${e.round} 成本倍率 ${e.ratio.toFixed(2)}x 偏高`,
+      messageKey: 'anomaly.cost_ratio_high',
+      messageParams: { round: e.round, ratio: e.ratio.toFixed(2) },
       round: e.round,
     });
   }
 
-  // Missing usage
   if (e.billedInput === 0 && e.billedOutput === 0) {
     out.push({
       type: 'missing_usage',
       severity: 'warning',
-      message: `R${e.round} usage 字段全部为零`,
+      messageKey: 'anomaly.missing_usage',
+      messageParams: { round: e.round },
       round: e.round,
     });
   }
@@ -143,7 +146,6 @@ function detectEntryAnomalies(e: AuditEntry): Anomaly[] {
 function detectOverallAnomalies(
   entries: AuditEntry[],
   overallRatio: number,
-  cacheHitRate: number,
 ): Anomaly[] {
   const out: Anomaly[] = [];
 
@@ -151,26 +153,28 @@ function detectOverallAnomalies(
     out.push({
       type: 'cost_mismatch',
       severity: 'critical',
-      message: `总体成本倍率 ${overallRatio.toFixed(2)}x,严重超出正常范围`,
+      messageKey: 'anomaly.overall_ratio_critical',
+      messageParams: { ratio: overallRatio.toFixed(2) },
       round: null,
     });
   } else if (overallRatio > TOLERANCE_HIGH) {
     out.push({
       type: 'cost_mismatch',
       severity: 'warning',
-      message: `总体成本倍率 ${overallRatio.toFixed(2)}x,高于正常范围`,
+      messageKey: 'anomaly.overall_ratio_high',
+      messageParams: { ratio: overallRatio.toFixed(2) },
       round: null,
     });
   }
 
-  // Cache anomaly: very high creation with no reads could indicate broken caching
   const totalCreate = entries.reduce((s, e) => s + e.billedCacheCreate, 0);
   const totalRead = entries.reduce((s, e) => s + e.billedCacheRead, 0);
   if (totalCreate > 0 && totalRead === 0 && entries.length >= 3) {
     out.push({
       type: 'cache_anomaly',
       severity: 'info',
-      message: `存在缓存创建 (${totalCreate} tokens) 但无缓存读取,缓存可能未生效`,
+      messageKey: 'anomaly.cache_anomaly',
+      messageParams: { create: totalCreate },
       round: null,
     });
   }
@@ -224,7 +228,7 @@ export function summarize(
   for (const e of entries) {
     anomalies.push(...detectEntryAnomalies(e));
   }
-  anomalies.push(...detectOverallAnomalies(entries, overallRatio, cacheHitRate));
+  anomalies.push(...detectOverallAnomalies(entries, overallRatio));
 
   return {
     entries,

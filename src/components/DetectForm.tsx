@@ -3,6 +3,8 @@ import Report, { type ReportData } from './Report';
 import CaptchaWidget from './CaptchaWidget';
 import Select from './Select';
 import { useLocale, useT } from '../hooks/useLocale';
+import type { RunnerEvent } from '../lib/runner';
+import type { ProbeResult } from '../lib/probes';
 
 const MODELS = [
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', est: '$0.30' },
@@ -17,7 +19,7 @@ interface LiveProbe {
   name: string;
   label: string;
   status: 'pending' | 'running' | 'done';
-  result?: any;
+  result?: ProbeResult;
 }
 
 export default function DetectForm() {
@@ -40,7 +42,10 @@ export default function DetectForm() {
   const completed = probes.filter((p) => p.status === 'done').length;
   const progress = stage === 'running' ? (completed / total) * 100 : 0;
 
-  function handleEvent(ev: any) {
+  type DoneEvent = Extract<RunnerEvent, { type: 'done' }> & { resultId?: string };
+  type ServerEvent = Exclude<RunnerEvent, { type: 'done' }> | DoneEvent;
+
+  function handleEvent(ev: ServerEvent) {
     switch (ev.type) {
       case 'start':
         setProbes(Array.from({ length: ev.total }, (_, i) => ({
@@ -57,18 +62,30 @@ export default function DetectForm() {
       case 'probe_result':
         setProbes((prev) => {
           const next = [...prev];
-          next[ev.index] = { index: ev.index, name: ev.result.name, label: ev.result.label, status: 'done', result: ev.result };
+          next[ev.index] = {
+            index: ev.index,
+            name: ev.result.name,
+            label: ev.result.label,
+            status: 'done',
+            result: ev.result,
+          };
           return next;
         });
         return;
-      case 'done':
+      case 'done': {
+        const results = ev.results;
         setReportData({
-          score: ev.score, verdict: ev.verdict, verdictDetail: ev.verdictDetail ?? null,
-          model, categories: ev.categories ?? [], audit: ev.audit ?? null,
-          probes: probes.map((p, i) => ({ index: i, name: ev.results?.[i]?.name ?? p.name, label: ev.results?.[i]?.label ?? p.label, result: ev.results?.[i] })),
+          score: ev.score,
+          verdict: ev.verdict,
+          verdictDetail: ev.verdictDetail ?? null,
+          model,
+          categories: ev.categories ?? [],
+          audit: ev.audit ?? null,
+          probes: results.map((r, i) => ({ index: i, name: r.name, label: r.label, result: r })),
           resultId: ev.resultId,
         });
         return;
+      }
       case 'error':
         setError(ev.message);
         return;

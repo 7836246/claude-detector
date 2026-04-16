@@ -5,6 +5,14 @@ data
 *.db
 .env
 .env.local
+.env.*.local
 .git
+.github
 .claude
+.vscode
 .DS_Store
+tests
+deploy
+*.md
+LICENSE
+vitest.config.ts

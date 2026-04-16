@@ -78,13 +78,20 @@ docker compose up -d --build
 
 # 等待服务就绪
 echo "等待服务启动..."
+READY=0
 for i in $(seq 1 30); do
-    if curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4321/api/health | grep -q 200; then
+    if curl -fsS http://127.0.0.1:4321/api/health >/dev/null 2>&1; then
         echo "服务已就绪 ✓"
+        READY=1
         break
     fi
     sleep 2
 done
+if [ "$READY" -ne 1 ]; then
+    echo "错误: 服务未在 60s 内就绪" >&2
+    docker compose logs --tail 30
+    exit 1
+fi
 
 # --- 6. Nginx 反向代理 + SSL ---
 echo "[6/6] 配置 Nginx + SSL..."
@@ -92,6 +99,12 @@ cat > /etc/nginx/sites-available/claude-detector <<NGINX
 server {
     listen 80;
     server_name $DOMAIN;
+
+    # Security headers (HSTS is added after certbot redirects to HTTPS)
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
     location / {
         proxy_pass http://127.0.0.1:4321;
@@ -116,9 +129,12 @@ nginx -t && systemctl reload nginx
 
 # SSL (非交互,如果域名已解析)
 echo "申请 SSL 证书..."
-certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email ai@anthropic.mom --redirect 2>/dev/null || {
-    echo "SSL 自动申请失败,请手动运行: certbot --nginx -d $DOMAIN"
-}
+CERTBOT_LOG="$INSTALL_DIR/certbot.log"
+if ! certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos \
+        --email ai@anthropic.mom --redirect >"$CERTBOT_LOG" 2>&1; then
+    echo "SSL 自动申请失败,日志保存在 $CERTBOT_LOG"
+    echo "请手动运行: certbot --nginx -d $DOMAIN"
+fi
 
 echo ""
 echo "========================================="

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { timingSafeEqual } from 'node:crypto';
 import { createAdminToken, isAdminConfigured, COOKIE_NAME, COOKIE_MAX_AGE } from '../../../lib/auth';
 
 export const prerender = false;
@@ -8,6 +9,17 @@ function json(data: unknown, status = 200) {
     status,
     headers: { 'content-type': 'application/json' },
   });
+}
+
+function constantTimeEquals(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, 'utf8');
+  const bBuf = Buffer.from(b, 'utf8');
+  if (aBuf.length !== bBuf.length) {
+    // Still run compare against equal-length dummy to flatten timing
+    timingSafeEqual(aBuf, Buffer.alloc(aBuf.length));
+    return false;
+  }
+  return timingSafeEqual(aBuf, bBuf);
 }
 
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -24,7 +36,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   const expected = process.env.ADMIN_PASSWORD ?? import.meta.env.ADMIN_PASSWORD ?? '';
-  if (!password || password !== expected) {
+  if (!password || !constantTimeEquals(password, expected)) {
     return json({ error: 'Wrong password' }, 401);
   }
 

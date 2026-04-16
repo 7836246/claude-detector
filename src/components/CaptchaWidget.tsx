@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../hooks/useLocale';
 
 type Provider = 'none' | 'turnstile' | 'tencent' | 'hcaptcha' | 'recaptcha';
 
@@ -28,13 +29,18 @@ export default function CaptchaWidget({ onVerify, onExpire }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/captcha-config')
+    const ctrl = new AbortController();
+    fetch('/api/captcha-config', { signal: ctrl.signal })
       .then((r) => r.json())
       .then((cfg: CaptchaConfig) => {
         setConfig(cfg);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        if ((err as { name?: string } | null)?.name === 'AbortError') return;
+        setLoading(false);
+      });
+    return () => ctrl.abort();
   }, []);
 
   if (loading) return <div className="h-16 animate-pulse rounded-lg bg-cream-dark" />;
@@ -60,22 +66,29 @@ function useScript(src: string): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!src) return;
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      const check = setInterval(() => {
-        if (scriptReady(src)) { setReady(true); clearInterval(check); }
-      }, 100);
-      return () => clearInterval(check);
-    }
-    const el = document.createElement('script');
-    el.src = src;
-    el.async = true;
-    el.onload = () => {
-      const check = setInterval(() => {
-        if (scriptReady(src)) { setReady(true); clearInterval(check); }
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    const waitReady = () => {
+      pollId = setInterval(() => {
+        if (scriptReady(src)) {
+          setReady(true);
+          if (pollId) clearInterval(pollId);
+          pollId = null;
+        }
       }, 100);
     };
-    document.head.appendChild(el);
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      waitReady();
+    } else {
+      const el = document.createElement('script');
+      el.src = src;
+      el.async = true;
+      el.onload = waitReady;
+      document.head.appendChild(el);
+    }
+    return () => {
+      if (pollId) clearInterval(pollId);
+    };
   }, [src]);
   return ready;
 }
@@ -135,12 +148,27 @@ function HcaptchaWidget({ config, onVerify, onExpire }: { config: CaptchaConfig;
 function RecaptchaWidget({ config, onVerify }: { config: CaptchaConfig; onVerify: (t: string) => void }) {
   const ready = useScript(config.scriptUrl);
   const executed = useRef(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!ready || executed.current || !window.grecaptcha) return;
     executed.current = true;
-    window.grecaptcha.execute(config.siteKey, { action: 'detect' }).then(onVerify);
-  }, [ready, config.siteKey]);
+    window.grecaptcha
+      .execute(config.siteKey, { action: 'detect' })
+      .then(onVerify)
+      .catch(() => {
+        executed.current = false;
+        setError(true);
+      });
+  }, [ready, config.siteKey, onVerify]);
+
+  if (error) {
+    return (
+      <p className="text-center text-[11px] text-bad">
+        reCAPTCHA failed — please reload the page.
+      </p>
+    );
+  }
 
   return (
     <p className="text-center text-[11px] text-ink-tertiary">
@@ -153,6 +181,7 @@ function RecaptchaWidget({ config, onVerify }: { config: CaptchaConfig; onVerify
 
 function TencentWidget({ config, onVerify }: { config: CaptchaConfig; onVerify: (t: string) => void }) {
   const ready = useScript(config.scriptUrl);
+  const tt = useT();
 
   const handleClick = useCallback(() => {
     if (!window.TencentCaptcha) return;
@@ -165,7 +194,7 @@ function TencentWidget({ config, onVerify }: { config: CaptchaConfig; onVerify: 
       },
     );
     captcha.show();
-  }, [ready, config.siteKey, config.tencentAppId]);
+  }, [config.siteKey, config.tencentAppId, onVerify]);
 
   return (
     <button
@@ -174,7 +203,7 @@ function TencentWidget({ config, onVerify }: { config: CaptchaConfig; onVerify: 
       disabled={!ready}
       className="w-full rounded-lg border border-sand bg-cream-dark px-4 py-2.5 text-sm text-ink-secondary transition hover:border-sand-dark hover:text-ink disabled:opacity-50"
     >
-      {ready ? '点击进行人机验证' : '加载验证码中...'}
+      {ready ? tt('captcha.tencent_click') : tt('captcha.loading')}
     </button>
   );
 }

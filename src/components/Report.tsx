@@ -26,12 +26,33 @@ interface AuditSummary {
 interface CategorySummary { category: string; label: string; passed: boolean; }
 
 interface Anomaly {
-  type: string; severity: string; message: string; round: number | null;
+  type: string;
+  severity: string;
+  // New shape:
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
+  // Legacy shape kept for old persisted results:
+  message?: string;
+  round: number | null;
+}
+
+interface Signal {
+  key: string;
+  params?: Record<string, string | number>;
 }
 
 interface VerdictDetail {
-  result: string; channel: string | null; label: string; description: string;
-  marketPrice: string; confidence: number; signals: string[];
+  result: string;
+  channel: string | null;
+  confidence: number;
+  // New locale-neutral shape:
+  descriptionKey?: string;
+  marketPriceKey?: string;
+  signals: Array<Signal | string>;
+  // Legacy pre-translated fields (kept for older persisted results):
+  label?: string;
+  description?: string;
+  marketPrice?: string;
 }
 
 type Verdict = 'genuine' | 'suspicious' | 'fake';
@@ -56,17 +77,48 @@ const VC: Record<Verdict, { ring: string; label: string; border: string; bg: str
 // --- Main ---
 
 export default function Report({ data, locale = 'zh', onReset }: Props) {
-  const tt = (k: string) => translate(k, locale);
+  const tt = (k: string, params?: Record<string, string | number>) => translate(k, locale, params);
   const { score, verdict, verdictDetail, model, categories, audit, probes, resultId } = data;
   const [copied, setCopied] = useState(false);
   const vm = VC[verdict];
 
   function copyUrl() {
     if (!resultId) return;
-    navigator.clipboard.writeText(`${window.location.origin}/result/${resultId}`).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(`${window.location.origin}/result/${resultId}`)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {
+        // Non-secure context or denied permissions — silently skip.
+      });
+  }
+
+  const vLabel = verdictDetail
+    ? [
+        tt(`verdict.${verdictDetail.result}`),
+        verdictDetail.channel ? tt(`channel.${verdictDetail.channel}`) : tt('tier.unknown_source'),
+      ].join(' · ')
+    : tt(`verdict.${verdict}`);
+
+  const vDescription = verdictDetail
+    ? (verdictDetail.descriptionKey ? tt(verdictDetail.descriptionKey) : verdictDetail.description ?? '')
+    : '';
+
+  const vMarketPrice = verdictDetail
+    ? (verdictDetail.marketPriceKey ? tt(verdictDetail.marketPriceKey) : verdictDetail.marketPrice ?? '—')
+    : '—';
+
+  const vChannelLabel = verdictDetail?.channel ? tt(`channel.${verdictDetail.channel}`) : '';
+
+  function renderSignal(s: Signal | string): string {
+    if (typeof s === 'string') return s;
+    return tt(s.key, s.params);
+  }
+
+  function renderAnomaly(a: Anomaly): string {
+    if (a.messageKey) return tt(a.messageKey, a.messageParams);
+    return a.message ?? '';
   }
 
   return (
@@ -113,16 +165,16 @@ export default function Report({ data, locale = 'zh', onReset }: Props) {
       <div className={`rounded-xl border p-4 ${vm.border} ${vm.bg}`}>
         {verdictDetail ? (
           <>
-            <p className={`font-semibold ${vm.label}`}>{verdictDetail.label}</p>
-            <p className="mt-1 text-xs text-dark-muted">{verdictDetail.description}</p>
+            <p className={`font-semibold ${vm.label}`}>{vLabel}</p>
+            <p className="mt-1 text-xs text-dark-muted">{vDescription}</p>
             <div className="mt-2.5 flex flex-wrap gap-2 text-[11px]">
-              {verdictDetail.channel && (
+              {vChannelLabel && (
                 <span className="rounded-md bg-dark-surface px-2 py-0.5 text-dark-text">
-                  {verdictDetail.channel}
+                  {vChannelLabel}
                 </span>
               )}
               <span className="rounded-md bg-dark-surface px-2 py-0.5 text-dark-muted">
-                {tt('tier.market_price')}: {verdictDetail.marketPrice}
+                {tt('tier.market_price')}: {vMarketPrice}
               </span>
               <span className="rounded-md bg-dark-surface px-2 py-0.5 text-dark-muted">
                 {tt('tier.confidence')}: {verdictDetail.confidence}%
@@ -134,7 +186,7 @@ export default function Report({ data, locale = 'zh', onReset }: Props) {
                   {tt('tier.signals')} ({verdictDetail.signals.length})
                 </summary>
                 <ul className="mt-1.5 space-y-0.5 pl-4 text-xs text-dark-muted">
-                  {verdictDetail.signals.map((s, i) => <li key={i} className="list-disc">{s}</li>)}
+                  {verdictDetail.signals.map((s, i) => <li key={i} className="list-disc">{renderSignal(s)}</li>)}
                 </ul>
               </details>
             )}
@@ -183,7 +235,7 @@ export default function Report({ data, locale = 'zh', onReset }: Props) {
                   </span>
                   <span className="text-dark-muted">
                     <span className="font-mono text-[10px] text-dark-muted/60">[{a.type}]</span>{' '}
-                    {a.message}
+                    {renderAnomaly(a)}
                   </span>
                 </li>
               ))}

@@ -112,7 +112,7 @@ describe('determineVerdict', () => {
     results.find(r => r.name === 'system_prompt_leak')!.passed = false;
     const v = determineVerdict(results, auditWith(1.02));
     expect(v.result).toBe('authentic_degraded');
-    expect(v.signals.some(s => s.includes('注入'))).toBe(true);
+    expect(v.signals.some(s => s.key.includes('injection'))).toBe(true);
   });
 
   it('returns third_party for high ratio with most passing', () => {
@@ -125,9 +125,10 @@ describe('determineVerdict', () => {
     expect(v.channel).toBe('proxy');
   });
 
-  it('has market price for every verdict', () => {
+  it('has market price key for every verdict', () => {
     const v = determineVerdict(allPassingProbes(), auditWith(1.0));
-    expect(v.marketPrice).toBeTruthy();
+    expect(v.marketPriceKey).toBeTruthy();
+    expect(v.marketPriceKey).toMatch(/^channel\.market_price\./);
   });
 
   it('separates result and channel', () => {
@@ -137,10 +138,9 @@ describe('determineVerdict', () => {
     expect(v.result).not.toBe(v.channel);
   });
 
-  it('always has label, description, signals', () => {
+  it('always has description key + signals', () => {
     const v = determineVerdict(allPassingProbes(), auditWith(1.0));
-    expect(v.label).toBeTruthy();
-    expect(v.description).toBeTruthy();
+    expect(v.descriptionKey).toMatch(/^verdict\.desc\./);
     expect(v.signals).toBeInstanceOf(Array);
   });
 });

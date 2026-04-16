@@ -75,6 +75,7 @@ export async function countTokens(
   ctx: { endpoint: string; apiKey: string; model: string },
   messages: unknown,
   system?: string,
+  signal?: AbortSignal,
 ): Promise<number | null> {
   try {
     const body: Record<string, unknown> = { model: ctx.model, messages };
@@ -85,6 +86,7 @@ export async function countTokens(
       path: '/v1/messages/count_tokens',
       body,
       timeoutMs: 15_000,
+      signal,
     });
     if (!res.ok) return null;
     const data = await readJson<{ input_tokens?: number }>(res);

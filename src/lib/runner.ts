@@ -64,6 +64,9 @@ export async function* runProbes(
         ...out,
       };
     } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw e;
+      }
       const msg = e instanceof Error ? e.message : String(e);
       result = {
         name: probe.name,
@@ -72,7 +75,7 @@ export async function* runProbes(
         weight: probe.weight,
         passed: false,
         score: 0,
-        detail: `异常: ${msg}`,
+        detail: `exception: ${msg}`,
       };
     }
 

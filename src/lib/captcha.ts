@@ -38,8 +38,17 @@ export const PROVIDER_SCRIPTS: Record<CaptchaProvider, string> = {
   recaptcha: '', // loaded with siteKey as param
 };
 
-// Read config from SQLite (falls back to env vars for backwards compat)
-export function getCaptchaConfig(): CaptchaConfig {
+// Read config from SQLite (falls back to env vars for backwards compat).
+// Cached in-process with a short TTL to avoid a SQLite hit on every request;
+// invalidate via `invalidateCaptchaCache()` after admin mutates settings.
+const CAPTCHA_TTL_MS = 30_000;
+let cached: { value: CaptchaConfig; expires: number } | null = null;
+
+export function invalidateCaptchaCache(): void {
+  cached = null;
+}
+
+function loadCaptchaConfig(): CaptchaConfig {
   const provider = (getConfig('captcha_provider') ??
     (import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ? 'turnstile' : 'none')) as CaptchaProvider;
 
@@ -57,6 +66,14 @@ export function getCaptchaConfig(): CaptchaConfig {
     secretKey: getConfig('captcha_secret_key') ?? '',
     tencentAppId: getConfig('captcha_tencent_appid') ?? '',
   };
+}
+
+export function getCaptchaConfig(): CaptchaConfig {
+  const now = Date.now();
+  if (cached && cached.expires > now) return cached.value;
+  const value = loadCaptchaConfig();
+  cached = { value, expires: now + CAPTCHA_TTL_MS };
+  return value;
 }
 
 // Public config (safe to expose to client — no secret key)

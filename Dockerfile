@@ -8,21 +8,21 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 # --- Runtime ---
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini wget \
+    && addgroup -S app \
+    && adduser -S -G app -H -h /app app
 
-# Copy built output + production deps (better-sqlite3 native addon included)
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
+COPY --from=builder --chown=app:app /app/dist ./dist
+COPY --from=builder --chown=app:app /app/node_modules ./node_modules
+COPY --from=builder --chown=app:app /app/package.json ./
 
-# Persistent data volume for SQLite
-RUN mkdir -p /data
+RUN mkdir -p /data && chown -R app:app /data
 VOLUME /data
 
 ENV HOST=0.0.0.0
@@ -32,6 +32,10 @@ ENV NODE_ENV=production
 
 EXPOSE 4321
 
-# Use tini for proper signal handling
+USER app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:4321/api/health >/dev/null 2>&1 || exit 1
+
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/server/entry.mjs"]

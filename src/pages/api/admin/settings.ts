@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { verifyAdminToken, COOKIE_NAME } from '../../../lib/auth';
 import { getConfig, setConfig } from '../../../lib/db';
-import { type CaptchaProvider, PROVIDER_LABELS } from '../../../lib/captcha';
+import { type CaptchaProvider, PROVIDER_LABELS, invalidateCaptchaCache } from '../../../lib/captcha';
 
 export const prerender = false;
 
@@ -49,6 +49,7 @@ export const POST: APIRoute = async ({ cookies, request }) => {
       setConfig(key, String(body[key]));
     }
   }
+  invalidateCaptchaCache();
 
   return jsonRes({ ok: true });
 };

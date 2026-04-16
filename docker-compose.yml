@@ -5,12 +5,17 @@ services:
       - "4321:4321"
     volumes:
       - claude-detector-data:/data
+    env_file:
+      - .env
     environment:
-      - PUBLIC_TURNSTILE_SITE_KEY=${PUBLIC_TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
-      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - DATA_DIR=/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4321/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   claude-detector-data:

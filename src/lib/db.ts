@@ -11,35 +11,65 @@ if (!existsSync(DATA_DIR)) {
 const db = new Database(join(DATA_DIR, 'cctest.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 5000');
+db.pragma('foreign_keys = ON');
 
-// Auto-create tables
+// --- Migrations --------------------------------------------------------------
+//
+// `schema_version.version` records the highest migration applied. Push new
+// migrations to the array; each runs exactly once in ascending order inside
+// a transaction. Never edit or reorder existing entries.
+
 db.exec(`
-  CREATE TABLE IF NOT EXISTS results (
-    id          TEXT PRIMARY KEY,
-    data        TEXT NOT NULL,
-    endpoint    TEXT,
-    model       TEXT,
-    score       INTEGER,
-    verdict     TEXT,
-    tier        TEXT,
-    created_at  INTEGER NOT NULL
+  CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY
   );
-
-  CREATE TABLE IF NOT EXISTS rate_limits (
-    ip          TEXT NOT NULL,
-    ts          INTEGER NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS config (
-    key         TEXT PRIMARY KEY,
-    value       TEXT NOT NULL
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_results_created ON results(created_at);
-  CREATE INDEX IF NOT EXISTS idx_results_tier ON results(tier);
-  CREATE INDEX IF NOT EXISTS idx_results_endpoint ON results(endpoint);
-  CREATE INDEX IF NOT EXISTS idx_rate_ip_ts ON rate_limits(ip, ts);
 `);
+
+const MIGRATIONS: ReadonlyArray<{ version: number; up: string }> = [
+  {
+    version: 1,
+    up: `
+      CREATE TABLE IF NOT EXISTS results (
+        id          TEXT PRIMARY KEY,
+        data        TEXT NOT NULL,
+        endpoint    TEXT,
+        model       TEXT,
+        score       INTEGER,
+        verdict     TEXT,
+        tier        TEXT,
+        created_at  INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        ip TEXT NOT NULL,
+        ts INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS config (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_results_created ON results(created_at);
+      CREATE INDEX IF NOT EXISTS idx_results_tier ON results(tier);
+      CREATE INDEX IF NOT EXISTS idx_results_endpoint ON results(endpoint);
+      CREATE INDEX IF NOT EXISTS idx_rate_ip_ts ON rate_limits(ip, ts);
+    `,
+  },
+];
+
+function runMigrations() {
+  const row = db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_version').get() as { v: number };
+  const current = row.v;
+  const pending = MIGRATIONS.filter((m) => m.version > current).sort((a, b) => a.version - b.version);
+  if (pending.length === 0) return;
+  const apply = db.transaction(() => {
+    for (const m of pending) {
+      db.exec(m.up);
+      db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(m.version);
+    }
+  });
+  apply();
+}
+
+runMigrations();
 
 // Prepared statements
 const insertResult = db.prepare(`
@@ -99,18 +129,25 @@ export function gcResults(ttlMs: number = 3600_000): void {
 // Rate limiting
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 5;
+const GC_EVERY_N = 100;
 
-export function checkRate(ip: string): { ok: boolean; remaining: number; retryAfterMs: number } {
-  const cutoff = Date.now() - WINDOW_MS;
-  // Clean old entries occasionally
-  deleteOldRates.run(cutoff);
+let rateCounter = 0;
 
+const checkRateTx = db.transaction((ip: string, now: number) => {
+  const cutoff = now - WINDOW_MS;
+  if (rateCounter++ % GC_EVERY_N === 0) {
+    deleteOldRates.run(cutoff);
+  }
   const { cnt } = countRates.get(ip, cutoff) as { cnt: number };
   if (cnt >= MAX_REQUESTS) {
-    return { ok: false, remaining: 0, retryAfterMs: WINDOW_MS };
+    return { ok: false as const, remaining: 0, retryAfterMs: WINDOW_MS };
   }
-  insertRate.run(ip, Date.now());
-  return { ok: true, remaining: MAX_REQUESTS - cnt - 1, retryAfterMs: 0 };
+  insertRate.run(ip, now);
+  return { ok: true as const, remaining: MAX_REQUESTS - cnt - 1, retryAfterMs: 0 };
+});
+
+export function checkRate(ip: string): { ok: boolean; remaining: number; retryAfterMs: number } {
+  return checkRateTx(ip, Date.now());
 }
 
 // Admin stats

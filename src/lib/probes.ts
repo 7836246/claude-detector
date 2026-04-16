@@ -7,6 +7,7 @@ export interface ProbeContext {
   apiKey: string;
   model: string;
   tokenAudit?: boolean;
+  signal?: AbortSignal;
 }
 
 export type Verdict = 'genuine' | 'suspicious' | 'fake';
@@ -100,7 +101,7 @@ async function auditedCall(
   const system = (body.system as string | undefined) ?? undefined;
 
   // Step 1: honest input count (only when token audit is enabled)
-  const honestInput = doAudit ? await countTokens(ctx, messages, system) : null;
+  const honestInput = doAudit ? await countTokens(ctx, messages, system, ctx.signal) : null;
 
   // Step 2: real /v1/messages call
   const { res, latencyMs } = await call({
@@ -108,6 +109,7 @@ async function auditedCall(
     apiKey: ctx.apiKey,
     path: '/v1/messages',
     body,
+    signal: ctx.signal,
   });
   const data = await readJson(res);
 
@@ -126,7 +128,7 @@ async function auditedCall(
   // Step 3: honest output recount (only when audit enabled)
   let honestOutput: number | null = null;
   if (doAudit && text) {
-    honestOutput = await countTokens(ctx, [{ role: 'user', content: text }]);
+    honestOutput = await countTokens(ctx, [{ role: 'user', content: text }], undefined, ctx.signal);
   }
 
   // Step 4: costs (only when audit enabled)
@@ -282,6 +284,7 @@ const countTokensMatch: Probe = {
       apiKey: ctx.apiKey,
       path: '/v1/messages',
       body: { model: ctx.model, max_tokens: 8, messages },
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(`HTTP ${res.status}`, latencyMs);
     const data = await readJson(res);
@@ -449,6 +452,7 @@ const streamingShape: Probe = {
         stream: true,
         messages: [{ role: 'user', content: 'Count: 1 2 3 4 5.' }],
       },
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(`HTTP ${res.status}`, latencyMs);
     const { events, firstTokenMs } = await readSseEvents(res);
@@ -491,6 +495,7 @@ const errorShape: Probe = {
       apiKey: ctx.apiKey,
       path: '/v1/messages',
       body: { model: ctx.model, messages: [] },
+      signal: ctx.signal,
     });
     if (res.ok) return fail('应返回 400,但返回了 200', latencyMs);
     const data = await readJson(res);
@@ -659,6 +664,7 @@ const cacheBehavior: Probe = {
       apiKey: ctx.apiKey,
       path: '/v1/messages',
       body,
+      signal: ctx.signal,
     });
     if (!r1.res.ok) return fail(`HTTP ${r1.res.status} (首次)`, r1.latencyMs);
     const d1 = await readJson(r1.res);
@@ -670,6 +676,7 @@ const cacheBehavior: Probe = {
       apiKey: ctx.apiKey,
       path: '/v1/messages',
       body,
+      signal: ctx.signal,
     });
     if (!r2.res.ok) return fail(`HTTP ${r2.res.status} (二次)`, r1.latencyMs + r2.latencyMs);
     const d2 = await readJson(r2.res);
@@ -853,14 +860,14 @@ const consistencyCheck: Probe = {
 
     const r1 = await call({
       endpoint: ctx.endpoint, apiKey: ctx.apiKey,
-      path: '/v1/messages', body,
+      path: '/v1/messages', body, signal: ctx.signal,
     });
     if (!r1.res.ok) return fail(`HTTP ${r1.res.status} (1st)`, r1.latencyMs);
     const d1 = await readJson(r1.res);
 
     const r2 = await call({
       endpoint: ctx.endpoint, apiKey: ctx.apiKey,
-      path: '/v1/messages', body,
+      path: '/v1/messages', body, signal: ctx.signal,
     });
     if (!r2.res.ok) return fail(`HTTP ${r2.res.status} (2nd)`, r1.latencyMs + r2.latencyMs);
     const d2 = await readJson(r2.res);
@@ -901,6 +908,7 @@ const headerFingerprint: Probe = {
         max_tokens: 4,
         messages: [{ role: 'user', content: 'hi' }],
       },
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(`HTTP ${res.status}`, latencyMs);
 

@@ -4,6 +4,8 @@ import { checkRateLimit } from '../../lib/ratelimit';
 import { save } from '../../lib/store';
 import { t, detectLocale, type Locale } from '../../lib/i18n';
 import { verifyCaptcha } from '../../lib/captcha';
+import { checkEndpoint } from '../../lib/ssrf';
+import { extractClientIp, sanitizeEndpointForStorage } from '../../lib/request';
 
 export const prerender = false;
 
@@ -15,10 +17,12 @@ interface DetectBody {
   tokenAudit?: unknown;
 }
 
-function validate(
+type ValidatedBody = { endpoint: string; apiKey: string; model: string };
+
+async function validate(
   body: DetectBody,
   locale: Locale,
-): { endpoint: string; apiKey: string; model: string } | string {
+): Promise<ValidatedBody | string> {
   const { endpoint, apiKey, model } = body;
   if (typeof endpoint !== 'string' || !endpoint)
     return t('error.endpoint_required', locale);
@@ -32,7 +36,23 @@ function validate(
   if (typeof model !== 'string' || !model)
     return t('error.model_required', locale);
   if (model.length > 128) return t('error.model_too_long', locale);
-  return { endpoint, apiKey, model };
+
+  const check = await checkEndpoint(endpoint);
+  if (!check.ok) {
+    switch (check.reason) {
+      case 'scheme':
+        return t('error.endpoint_invalid', locale);
+      case 'userinfo':
+        return t('error.endpoint_userinfo', locale);
+      case 'hostname':
+        return t('error.endpoint_invalid', locale);
+      case 'dns':
+        return t('error.endpoint_dns', locale);
+      case 'private':
+        return t('error.endpoint_private', locale);
+    }
+  }
+  return { endpoint: check.url, apiKey, model };
 }
 
 function jsonError(msg: string, status: number) {
@@ -45,8 +65,7 @@ function jsonError(msg: string, status: number) {
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   const locale = detectLocale(request.headers.get('accept-language'));
 
-  // Rate limit
-  const ip = clientAddress ?? '127.0.0.1';
+  const ip = extractClientIp(request.headers, clientAddress);
   const rl = checkRateLimit(ip);
   if (!rl.ok) {
     const secs = Math.ceil(rl.retryAfterMs / 1000);
@@ -56,7 +75,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     );
   }
 
-  // Parse body
   let body: DetectBody;
   try {
     body = (await request.json()) as DetectBody;
@@ -64,14 +82,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return jsonError(t('error.invalid_json', locale), 400);
   }
 
-  // Captcha (provider determined by admin config)
   const captchaOk = await verifyCaptcha(String(body.turnstileToken ?? ''), { ip });
   if (!captchaOk) {
     return jsonError(t('error.turnstile', locale), 403);
   }
 
-  // Validate
-  const parsed = validate(body, locale);
+  const parsed = await validate(body, locale);
   if (typeof parsed === 'string') {
     return jsonError(parsed, 400);
   }
@@ -86,13 +102,17 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       };
       try {
         const tokenAudit = !!body.tokenAudit;
-        for await (const ev of runProbes({ ...parsed, tokenAudit })) {
+        for await (const ev of runProbes({
+          ...parsed,
+          tokenAudit,
+          signal: request.signal,
+        })) {
           if (ev.type === 'done') {
             const resultId = crypto.randomUUID();
             save(resultId, {
               ...ev,
               model: parsed.model,
-              endpoint: parsed.endpoint,
+              endpoint: sanitizeEndpointForStorage(parsed.endpoint),
               createdAt: Date.now(),
             });
             send({ ...ev, resultId });
@@ -101,8 +121,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
           }
         }
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        send({ type: 'error', message: msg });
+        if (e instanceof Error && e.name === 'AbortError') {
+          // client disconnect — don't emit
+        } else {
+          console.error('[detect] probe failure', e);
+          send({ type: 'error', message: t('error.probe_failed', locale) });
+        }
       } finally {
         controller.close();
       }
